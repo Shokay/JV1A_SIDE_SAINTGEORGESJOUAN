@@ -1,0 +1,742 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" /><title>Mon 1er niveau Phaser</title>
+    <script src="//cdn.jsdelivr.net/npm/phaser@3.51.0/dist/phaser.js">
+    </script>
+
+    <style type="text/css"> body 
+    
+        { margin: 0; 
+        }
+        
+    
+    </style>
+</head>
+<body>
+    <script type="text/javascript">
+
+        var config = {
+            type: Phaser.AUTO,
+            width: 1280, height: 720,           //config de la fenetre et du niveau en generale
+            physics: {      
+            default: 'arcade',
+            arcade: {
+            debug: false
+            }},
+            input:{gamepad:true},
+            scene: {preload: preload, create: create, update: update }
+            };
+        new Phaser.Game(config);
+        
+
+        function preload(){
+            //load de toute les images / sprites sheet 
+
+            this.load.image("Phaser_tuilesdejeu", "assets/tiledlvl.png");
+            this.load.image("Phaser_tuilesdejeuBackgrond", "assets/fondniveau.png");
+            this.load.image("Waterfg","assets/water.png");
+            this.load.image("HitBox","assets/blochitbox.png");
+            this.load.image("HitBox","assets/blochitbox.png");
+            this.load.image("BlocZone1","assets/blocz1.png");
+            this.load.image("BlocZone2","assets/blocz2.png");
+
+            
+            this.load.tilemapTiledJSON("carte", "map.json");  
+
+            this.load.spritesheet('perso','assets/persosheet.png',
+            { frameWidth: 32, frameHeight: 32 });
+
+            this.load.spritesheet('persoT','assets/persotrianglesheet.png',
+            { frameWidth: 32, frameHeight: 32 });
+
+            this.load.spritesheet('mob','assets/mob3spritesheet.png',
+            { frameWidth: 48, frameHeight: 64 });
+            
+            this.load.spritesheet('signe_droite','assets/signe.png',
+            { frameWidth: 32, frameHeight: 64 });
+
+            this.load.spritesheet('barrepv','assets/healtbar.png',
+            { frameWidth: 160, frameHeight: 32 });
+
+            this.load.spritesheet('PowerUpT','assets/PowerUpsheet.png',
+            { frameWidth: 32, frameHeight: 32 });
+            
+            this.load.spritesheet('Squid','assets/squidsheet.png',
+            { frameWidth: 48, frameHeight: 64 });
+            
+            this.load.spritesheet('Egg','assets/oeufsheet.png',
+            { frameWidth: 48, frameHeight: 64 });
+
+            this.load.spritesheet('Eggindic','assets/eggindicsheet.png',
+            { frameWidth: 96, frameHeight: 32 });
+
+            this.load.spritesheet('Enorme','assets/bigmonstresheet.png',
+            { frameWidth: 608, frameHeight: 176 });
+           
+            this.load.spritesheet('Bomb','assets/bombsheet.png',
+            { frameWidth: 32, frameHeight: 32 });
+
+            this.load.spritesheet('Finale','assets/animefinalsheet.png',
+            { frameWidth: 160, frameHeight: 160 });
+
+        }
+
+            
+        // Initialisation des var    
+        var player;
+        var cursors;
+        var haut;
+        var bas;
+        var droite;
+        var gauche;
+        var immobile;
+        var AttaqueStatus;
+        var HpJoueur;
+        var compteur;
+        var invincible;
+        var Recup;
+        var EggRecuperer;
+        var test;
+        var fin;
+        var controller; 
+        var isConnected = false;
+        var Test;
+        fin = false
+        ResistenceN=-10
+        ResistenceP=10
+        EggRecuperer = 0;
+        invincible = false  ;
+        compteur = 60;
+        HpJoueur = 100;
+        Recup = false;
+        AttaqueStatus=false;
+        haut="upR";
+        bas="downR";
+        droite="rightR";
+        gauche="leftR";
+        immobile="staticR";
+        
+     
+
+        function create (){
+            
+            const carteDuNiveau = this.add.tilemap("carte");
+
+            // importer TileSet 
+            const tileset = carteDuNiveau.addTilesetImage(
+                    "TiledNiveau",
+                    "Phaser_tuilesdejeu"
+                    );        
+            
+            const tilesetBackground = carteDuNiveau.addTilesetImage(            //importation du niveau avec fichier tiled
+                    "maptuiles",
+                    "Phaser_tuilesdejeuBackgrond"
+                    );                    
+
+
+            // importer les calques 
+            const background = carteDuNiveau.createStaticLayer(
+                    "map",
+                    tilesetBackground
+                    );
+            const plateformes = carteDuNiveau.createStaticLayer(
+                    "bloc",
+                    tileset
+                    );  
+
+
+            PowerUpTriangle = this.physics.add.sprite(150,1300, 'PowerUpT').setScale(1.5);          //creation des sprites
+            signe_right = this.physics.add.sprite(1300,280, 'signe_droite');
+
+
+            Eggs = this.physics.add.group();                //creation de groupe pour les oeufs
+            Egg1 = Eggs.create(1780,1270, 'Egg')
+            Egg2 = Eggs.create(550,1940, 'Egg')
+            Egg3 = Eggs.create(1675,2520, 'Egg')
+
+            var HitBoxBloc = this.physics.add.image(924,3070,'HitBox');     //hitbox du monstre de fin pour pouvoir permettre d'interargir avec le background
+            HitBoxBloc.alpha = 0;  
+
+            player = this.physics.add.sprite(950,280, 'perso') ;
+            background.setScrollFactor(0.8,0.99)                                    //effet paralax 
+            plateformes.setCollisionByProperty({ estSolide: true });         //background et plateformes
+            this.physics.add.collider(player, plateformes);
+            Zonebloque = this.physics.add.staticGroup();
+            ZoneBloque1=Zonebloque.create(1038,1327, 'BlocZone1');          //creation d'un bloc avec une physique (liane qui bloque le passage)
+            this.physics.add.collider(player,Zonebloque);
+
+            Zonebloque = this.physics.add.staticGroup();
+            ZoneBloque2=Zonebloque.create(870,1996, 'BlocZone2');    //creation d'un bloc avec une physique (liane qui bloque le passage)
+            this.physics.add.collider(player,Zonebloque);
+
+            AnimationFinalePerso = this.physics.add.sprite(1050,3098, 'Finale');            //animation de fin invisible 
+            AnimationFinalePerso.alpha=0;
+
+            Bombs = this.physics.add.group();
+            Bomb1 = Bombs.create(878,2518, 'Bomb');
+            Bomb2 = Bombs.create(1144,2672, 'Bomb');
+            Bomb3 = Bombs.create(892,2728, 'Bomb');     //groupe des bombes
+            Bomb4 = Bombs.create(700,2681, 'Bomb');
+
+            MonstreEnorme = this.physics.add.sprite(2200,1740, 'Enorme');  //creation du gros monstre
+
+            Anguilles = this.physics.add.group();
+            Anguille1 = Anguilles.create(523,2176, 'mob');
+            Anguille2 = Anguilles.create(690,1936, 'mob');
+            Anguille3 = Anguilles.create(932,2175, 'mob');      //groupe  des anguilles
+            Anguille4 = Anguilles.create(1442,2433, 'mob');
+
+            Squids = this.physics.add.group();
+            Squid1 = Squids.create(1400,1150, 'Squid');
+            Squid2 = Squids.create(1450,1000, 'Squid');
+            Squid3 = Squids.create(1518,500, 'Squid');              //groupe des squids
+            Squid4 = Squids.create(787,1360, 'Squid');
+            Squid5 = Squids.create(990,621, 'Squid');
+            Squid6 = Squids.create(375,492, 'Squid');
+
+            var water = this.add.image(960,1632,'Waterfg');             //creation d'un degradé mit en avant sur le niveau permettant d'avoir un effet eau ainsi qu'un degradé de couleur selon la profondeur
+            water.alpha = 0.5;          
+            this.physics.add.overlap(player, Anguilles, AttaqueAnguille, null, this);
+            this.physics.add.overlap(player, Squids, AttaqueSquide, null, this);
+            this.physics.add.overlap(player, Eggs, RecupEgg, null, this);
+            this.physics.add.overlap(player, Bombs, Death, null, this);
+            this.physics.add.overlap(player, PowerUpTriangle, RecupPowerUp, null, this);
+            this.physics.add.overlap(player, HitBoxBloc, FinNiveau, null, this);       //fonction avec overlap ( degat,recuperation etc...)
+            this.physics.world.setBounds(0, 0, 1920, 3264);
+            this.cameras.main.setBounds(0, 0, 1920,3264);
+            this.cameras.main.zoom = 1.25;                  //Camera
+            this.cameras.main.startFollow(player);  
+            player.setCollideWorldBounds(true);
+            EggIndication = this.add.sprite(250,150, 'Eggindic');
+            EggIndication.setScrollFactor(0);
+            Pvbarre = this.add.sprite(250,100, 'barrepv');              //creation hud au dessus de l'image eau ( pour ne pas avoir l'effet sur eux)
+            Pvbarre.setScrollFactor(0);
+
+        
+            this.anims.create({
+                key: 'leftR',           
+                frames: this.anims.generateFrameNumbers('perso', {start:4,end:7}),          //creation des animation
+                frameRate: 5,
+                repeat: -1,
+            });
+            this.anims.create({
+                key: 'staticR',
+                frames: this.anims.generateFrameNumbers('perso', {start:0,end:3}),
+                frameRate: 5,
+                repeat: -1,
+            });
+            this.anims.create({
+                key: 'rightR',
+                frames: this.anims.generateFrameNumbers('perso', {start:8,end:11}),
+                frameRate: 5,
+                repeat: -1,
+            });
+            
+            this.anims.create({
+                key: 'downR',
+                frames: this.anims.generateFrameNumbers('perso', {start:12,end:15}),
+                frameRate: 5,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'upR',
+                frames: this.anims.generateFrameNumbers('perso', {start:16,end:19}),
+                frameRate: 5,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'leftT',
+                frames: this.anims.generateFrameNumbers('persoT', {start:4,end:7}),
+                frameRate: 5,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'staticT',
+                frames: this.anims.generateFrameNumbers('persoT', {start:0,end:3}),
+                frameRate: 5,
+                repeat: -1,
+            });
+            
+            this.anims.create({
+                key: 'rightT',
+                frames: this.anims.generateFrameNumbers('persoT', {start:8,end:11}),
+                frameRate: 5,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'downT',
+                frames: this.anims.generateFrameNumbers('persoT', {start:12,end:15}),
+                frameRate: 5,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'upT',
+                frames: this.anims.generateFrameNumbers('persoT', {start:16,end:19}),
+                frameRate: 5,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'mobAnime',
+                frames: this.anims.generateFrameNumbers('mob', {start:0,end:11}),
+                frameRate: 5,
+                repeat: -1,
+            });
+            
+            this.anims.create({
+                key: 'signe_droite_anime',
+                frames: this.anims.generateFrameNumbers('signe_droite', {start:0,end:2}),
+                frameRate: 5,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'Egg1',
+                frames: this.anims.generateFrameNumbers('Eggindic', {start:0,end:0}),
+                frameRate: 5,
+            });
+
+            this.anims.create({
+                key: 'Egg2',
+                frames: this.anims.generateFrameNumbers('Eggindic', {start:1,end:1}),
+                frameRate: 5,
+            });
+
+            this.anims.create({
+                key: 'Egg3',
+                frames: this.anims.generateFrameNumbers('Eggindic', {start:2,end:2}),
+                frameRate: 5,
+            });
+
+            this.anims.create({
+                key: 'Egg4',
+                frames: this.anims.generateFrameNumbers('Eggindic', {start:3,end:3}),
+                frameRate: 5,
+            });
+
+            this.anims.create({
+                key: 'HpBar1',
+                frames: this.anims.generateFrameNumbers('barrepv', {start:0,end:0}),
+                frameRate: 5,
+            });
+
+            this.anims.create({
+                key: 'HpBar2',
+                frames: this.anims.generateFrameNumbers('barrepv', {start:1,end:1}),
+                frameRate: 5,
+            });
+
+            this.anims.create({
+                key: 'HpBar3',
+                frames: this.anims.generateFrameNumbers('barrepv', {start:2,end:2}),
+                frameRate: 5,
+            });
+
+            this.anims.create({
+                key: 'HpBar4',
+                frames: this.anims.generateFrameNumbers('barrepv', {start:3,end:3}),
+                frameRate: 5,
+            });
+
+            this.anims.create({
+                key: 'HpBar5',
+                frames: this.anims.generateFrameNumbers('barrepv', {start:4,end:4}),
+                frameRate: 5,
+            });
+
+            this.anims.create({
+                key: 'PoweUp',
+                frames: this.anims.generateFrameNumbers('PowerUpT', {start:0,end:3}),
+                frameRate: 5,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'Squidanime',
+                frames: this.anims.generateFrameNumbers('Squid', {start:0,end:2}),
+                frameRate: 5,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'Egganime',
+                frames: this.anims.generateFrameNumbers('Egg', {start:0,end:3}),
+                frameRate: 2,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'BigAnime',
+                frames: this.anims.generateFrameNumbers('Enorme', {start:0,end:1}),
+                frameRate: 10,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'EnergyBomb',
+                frames: this.anims.generateFrameNumbers('Bomb', {start:0,end:2}),
+                frameRate: 5,
+                repeat: -1,
+            });
+
+            this.anims.create({
+                key: 'FinaleAnimation',
+                frames: this.anims.generateFrameNumbers('Finale', {start:0,end:3}),
+                frameRate: 5,
+                repeat: -1,
+            });
+
+            Anguille1.play('mobAnime', true);
+            Anguille2.play('mobAnime', true);
+            Anguille3.play('mobAnime', true);
+            Anguille4.play('mobAnime', true);
+            signe_right.play('signe_droite_anime', true);           //mise en place des animations sur sprite
+            PowerUpTriangle.play('PoweUp', true);
+            Squid1.play('Squidanime', true);
+            Squid2.play('Squidanime', true);
+            Squid3.play('Squidanime', true);
+            Squid4.play('Squidanime', true);
+            Squid5.play('Squidanime', true);
+            Squid6.play('Squidanime', true);
+            Egg1.play('Egganime', true);
+            Bomb1.play('EnergyBomb', true);
+            Bomb2.play('EnergyBomb', true);
+            Bomb3.play('EnergyBomb', true);
+            Bomb4.play('EnergyBomb', true);
+            AnimationFinalePerso.play('FinaleAnimation', true);
+
+
+            // touches clavier
+            cursors = this.input.keyboard.createCursorKeys();
+            this.keys = this.input.keyboard.addKeys({
+                q:  Phaser.Input.Keyboard.KeyCodes.Q,
+                d:  Phaser.Input.Keyboard.KeyCodes.D,
+                s:  Phaser.Input.Keyboard.KeyCodes.S,
+                z:  Phaser.Input.Keyboard.KeyCodes.Z,
+                a:  Phaser.Input.Keyboard.KeyCodes.A,
+                e:  Phaser.Input.Keyboard.KeyCodes.E,               //importation de touche
+                f:  Phaser.Input.Keyboard.KeyCodes.F
+            });
+
+
+            function AttaqueAnguille(player,Anguilleseul){
+                if (AttaqueStatus==true){
+                    Anguilleseul.disableBody(true, true);
+                }else{
+                    if(invincible === false){
+                    invincible = true;
+                    HpJoueur = HpJoueur-25;
+                    player.setTint(0xff0000);
+                    }
+                }
+
+            }
+
+            
+
+            function AttaqueSquide(player,squideseul){              //fonction d'attaque, recuperation power up, d'oeuf
+                if (AttaqueStatus==true){
+                    squideseul.disableBody(true, true);
+                }else{
+                    if(invincible === false){
+                    invincible = true;
+                    HpJoueur = HpJoueur-25;
+                    player.setTint(0xff0000);
+                    }
+                }
+
+            }
+
+            function RecupEgg(player,Eggseul){
+                if (this.keys.f.isDown){
+                    Eggseul.disableBody(true, true);
+                    EggRecuperer=EggRecuperer+1
+                } 
+
+            }
+            
+            function RecupPowerUp(){
+                Recup=true
+                PowerUpTriangle.disableBody(true, true);
+                PowerUpTriangleIcon = this.add.sprite(350,110, 'PowerUpT');
+                PowerUpTriangleIcon.setScrollFactor(0);
+                PowerUpTriangleIcon.play('PoweUp', true);
+            }            
+
+        }
+
+        function FinNiveau(){
+            if (this.keys.f.isDown && EggRecuperer==3){
+                player.disableBody(true,true);
+                AnimationFinalePerso.alpha=1;
+                fin = true
+            }
+        }
+
+        function Death(){
+                player.scene.scene.restart();
+                haut="upR"
+                bas="downR"
+                droite="rightR"
+                gauche="leftR"
+                immobile="staticR"
+                HpJoueur=100
+                EggRecuperer=0
+                Recup=false
+                AttaqueStatus=false
+                ResistenceP=10                      //fonction mort qui reset les variables et la scene
+                ResistenceN=-10
+                invincible=false
+                AnimationFinalePerso.alpha=0;
+            }
+
+
+        
+        function update(){
+
+            if(player.y<=1430){
+                ResistenceP=5  
+                ResistenceN=-5
+            }
+
+            if(player.y>=1430){
+                ResistenceP=40            //resistence a l'eau selon profondeurs. Plus le jouer et profond moins la vitesse de son dash sera importante
+                ResistenceN=-40
+            }
+
+            if(player.y>=2140){
+                ResistenceP=100
+                ResistenceN=-100
+            }
+
+            this.physics.add.overlap(player, MonstreEnorme, Death, null, this);         // fonction du gros monstre mit dans update car il est trop rapide et donc la fonction ne se lancer pas dans create
+            MonstreEnorme.anims.play('BigAnime', true);
+
+            if(invincible == true){
+                compteur-- ;
+            if(compteur == 0){
+                    compteur = 60;
+                    player.setTint(0xffffff);                   //invincibilité avec compteur 
+                    invincible = false ;
+                }
+            }
+
+            if(fin == true){
+                compteur-- ;
+            if(compteur == 0){                  //fonction avec compteur pour l'animation de fin
+                Death()
+                }
+            }
+
+            if(Squid1.y>=1150){
+                Squid1.setVelocityY(-100)
+            }
+            
+            if(Squid1.y<=1000){
+                Squid1.setVelocityY(100) 
+                }
+            
+            if(Squid2.y>=1150){
+                Squid2.setVelocityY(-100)
+            }
+            
+            if(Squid2.y<=1000){
+                Squid2.setVelocityY(100) 
+                }
+
+            if(Squid4.y>=1360){
+                Squid4.setVelocityY(-100)               //permet de faire un pattern au mob
+            }
+            
+            if(Squid4.y<=1104){
+                Squid4.setVelocityY(100) 
+                }
+
+            if(MonstreEnorme.x<=2200){
+                MonstreEnorme.setVelocityX(-2000)               //donne un deplcament au monstre
+            }
+
+            if(MonstreEnorme.x<=-300){
+                MonstreEnorme.disableBody(true,true)
+                MonstreEnorme = this.physics.add.sprite(2200,1740, 'Enorme');  // quand monstre sort de la map le refait spawn de l'autre coté ( permet d'avoir un temps plus cours entre les passages que si j'avais fait un aller retour)
+            }
+
+            if(this.keys.a.isDown && Recup==true){              //mode attaque avec verif si power up recuperer
+                AttaqueStatus=true
+                haut="upT"
+                bas="downT"
+                droite="rightT"
+                gauche="leftT"
+                immobile="staticT"
+            }
+
+            if(this.keys.e.isDown ){
+                AttaqueStatus=false             //mode deplacement
+                haut="upR"              
+                bas="downR"
+                droite="rightR"
+                gauche="leftR"
+                immobile="staticR"
+            }
+
+            if(EggRecuperer==0){
+                EggIndication.anims.play("Egg1", true);             
+            }
+
+            if(EggRecuperer==1){
+                ZoneBloque1.disableBody(true,true);
+                EggIndication.anims.play("Egg2", true);                     //verif des oeufs avec barre des oeufs
+            }
+
+            if(EggRecuperer==2){
+                ZoneBloque2.disableBody(true,true);
+                EggIndication.anims.play("Egg3", true);             
+            }
+            
+            if(EggRecuperer==3){
+                EggIndication.anims.play("Egg4", true);             
+            }
+
+            if (HpJoueur==100){
+                Pvbarre.anims.play("HpBar1", true);
+            }
+
+            if (HpJoueur==75){
+                Pvbarre.anims.play("HpBar2", true);         //barre d'hp
+            }
+
+            if (HpJoueur==50){
+                Pvbarre.anims.play("HpBar3", true);
+            }
+            
+            if (HpJoueur==25){
+                Pvbarre.anims.play("HpBar4", true);
+            }
+
+            if (HpJoueur<=0){
+                Pvbarre.anims.play("HpBar5", true);             //mort du perso
+                Death()
+            }
+
+            if (cursors.up.isDown || this.keys.z.isDown){
+                if(cursors.shift.isDown && AttaqueStatus==false) {             //deplacement avec changement de skin pour l'attaque
+                player.setVelocityY(-300-ResistenceN);
+                player.anims.play(haut, true);
+                }else{
+                player.setVelocityY(-100);
+                player.anims.play(haut, true);
+                }
+            }
+                
+            else if (cursors.down.isDown || this.keys.s.isDown ) { 
+                if(cursors.shift.isDown && AttaqueStatus==false) {
+                player.setVelocityY(300-ResistenceP);
+                player.anims.play(bas, true);
+                }else{
+                player.setVelocityY(100);
+                player.anims.play(bas, true);
+                }
+            }
+                
+            else if (cursors.left.isDown || this.keys.q.isDown) { 
+                if(cursors.shift.isDown  && AttaqueStatus==false) {
+                player.setVelocityX(-300-ResistenceN);
+                player.setVelocityY(0); 
+                player.anims.play(gauche, true);
+                }else{
+                player.setVelocityX(-100);
+                player.setVelocityY(0); 
+                player.anims.play(gauche, true);
+                }
+            }
+
+            else if (cursors.right.isDown || this.keys.d.isDown) { 
+                if(cursors.shift.isDown  && AttaqueStatus==false) {
+                player.setVelocityX(300-ResistenceP);
+                player.setVelocityY(0); 
+                player.anims.play(droite, true);
+                }else{
+                player.setVelocityX(100);
+                player.setVelocityY(0); 
+                player.anims.play(droite, true);
+                }
+            }
+                
+            else{ 
+                player.setVelocityX(0); 
+                player.anims.play(immobile, true);
+            }
+
+            if (cursors.up.isUp && this.keys.z.isUp && cursors.left.isUp && this.keys.q.isUp && cursors.right.isUp && this.keys.d.isUp && this.keys.s.isUp && cursors.down.isUp){
+                player.setVelocityY(-10);           //permet de flotter si le perso ne bouge pas
+            }   
+
+            this.input.gamepad.once('connected', function (pad) {
+                        controller = this.pad1;                     //verif si la manette est branchée
+                        isConnected = true; 
+                    });
+
+            if(isConnected){
+                player.setVelocityX(160* controller.leftStick.x);
+                player.setVelocityY(160* controller.leftStick.y);           // permet d'avoir un déplacement en 360
+                    if (controller.leftStick.y < 0){
+                        if(controller.A && AttaqueStatus==false) {      //deplacement manette
+                        player.setVelocityY(-300-ResistenceN);
+                        player.anims.play(haut, true);
+                        }else{
+                        player.setVelocityY(-100);
+                        player.anims.play(haut, true);
+                        }
+                    } 
+                    
+                    else if (controller.leftStick.y > 0) { 
+                        if(controller.A  && AttaqueStatus==false) {
+                        player.setVelocityY(300-ResistenceP);
+                        player.anims.play(bas, true);
+                        }else{
+                        player.setVelocityY(100);
+                        player.anims.play(bas, true);
+                        }
+                    }
+            
+                    else if(controller.leftStick.x < 0){
+                        if(controller.A  && AttaqueStatus==false) {
+                            player.setVelocityX(-300-ResistenceN);
+                            player.setVelocityY(0); 
+                            player.anims.play(gauche, true);
+                            }else{
+                            player.setVelocityX(-100);
+                            player.setVelocityY(0); 
+                            player.anims.play(gauche, true);}
+                    }
+                    else if(controller.leftStick.x > 0){
+                        if(controller.A  && AttaqueStatus==false) {
+                            player.setVelocityX(300-ResistenceP);
+                            player.setVelocityY(0); 
+                            player.anims.play(droite, true);
+                        }else{
+                            player.setVelocityX(100);
+                            player.setVelocityY(0); 
+                            player.anims.play(droite, true);
+                        }
+                    }
+                    else{
+                        player.setVelocityX(0);
+                        player.anims.play(immobile, true);
+                    }
+            }                    
+            
+            
+        }
+       
+        
+
+    </script>
+</body>
+</html>
